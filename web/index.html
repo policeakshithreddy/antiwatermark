@@ -37,7 +37,7 @@
 
     header {
       text-align: center;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
 
     .logo-badge {
@@ -66,6 +66,26 @@
       font-size: 15px;
       max-width: 700px;
       margin: 0 auto;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+    }
+
+    .toolbar-left, .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .grid {
@@ -115,7 +135,7 @@
       color: var(--text-bright);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 6px 12px;
+      padding: 7px 14px;
       font-size: 13px;
       cursor: pointer;
       transition: all 0.2s;
@@ -128,6 +148,7 @@
     button.btn-primary {
       background: var(--success);
       border-color: var(--success-glow);
+      font-weight: 600;
     }
 
     button.btn-primary:hover {
@@ -136,7 +157,7 @@
 
     textarea {
       width: 100%;
-      height: 260px;
+      height: 280px;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -256,10 +277,32 @@
       </div>
       <h1>AI Text Watermark Remover & Humanizer</h1>
       <p class="subtitle">
-        Strips hidden zero-width Unicode steganography, shatters statistical token fingerprints,
-        protects code & math syntax, and simulates Turnitin/GPTZero offline.
+        Strips hidden zero-width Unicode steganography, replaces AI buzzwords, shatters statistical token patterns,
+        and protects code & math syntax.
       </p>
     </header>
+
+    <!-- Mode & Settings Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <label style="font-size: 13px; font-weight: 600;">Action Mode:</label>
+        <select id="modeSelect">
+          <option value="humanize">⚡ Auto-Humanize & Strip AI Clichés (Recommended)</option>
+          <option value="unicode_only">🧹 Strip Invisible Steganography Only</option>
+        </select>
+        <select id="domainSelect">
+          <option value="general">Domain: General</option>
+          <option value="academic">Domain: Academic</option>
+          <option value="technical">Domain: Technical</option>
+          <option value="business">Domain: Business</option>
+          <option value="casual">Domain: Casual</option>
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <button id="sampleBtn">🧪 Load AI Sample</button>
+        <button id="promptBtn">📋 Copy Dewatermark Prompt</button>
+      </div>
+    </div>
 
     <div class="grid">
       <!-- Input Panel -->
@@ -267,20 +310,13 @@
         <div class="panel-header">
           <div class="panel-title">📥 Raw AI / LLM Output</div>
           <div class="controls">
-            <select id="domainSelect">
-              <option value="general">Domain: General</option>
-              <option value="academic">Domain: Academic</option>
-              <option value="technical">Domain: Technical</option>
-              <option value="business">Domain: Business</option>
-              <option value="casual">Domain: Casual</option>
-            </select>
-            <button id="sampleBtn">Load Sample</button>
+            <button id="clearBtn" style="padding: 4px 8px; font-size: 11px;">Clear</button>
           </div>
         </div>
-        <textarea id="inputText" placeholder="Paste your text from Claude, Gemini, ChatGPT, or web here..."></textarea>
+        <textarea id="inputText" placeholder="Paste your text from Claude, Gemini, ChatGPT, or the web here..."></textarea>
         <div class="panel-footer">
           <span id="inputStats">0 words | 0 characters</span>
-          <button id="cleanBtn" class="btn-primary">🧹 Clean & Analyze</button>
+          <button id="cleanBtn" class="btn-primary">⚡ Clean & Humanize</button>
         </div>
       </div>
 
@@ -288,14 +324,14 @@
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span>✨ Sanitized Output</span>
+            <span>✨ Sanitized & Humanized Output</span>
             <span class="shield-badge" id="shieldBadge">🛡️ Code & Math Shield: Active</span>
           </div>
           <div class="controls">
-            <button id="copyBtn">📋 Copy Text</button>
+            <button id="copyBtn">📋 Copy Clean Text</button>
           </div>
         </div>
-        <textarea id="outputText" placeholder="Sanitized text will appear here..." readonly></textarea>
+        <textarea id="outputText" placeholder="Sanitized & humanized text will appear here..." readonly></textarea>
         <div class="panel-footer">
           <span id="outputStats">0 words | 0 characters</span>
           <span id="copyFeedback" style="color: #3fb950; display: none;">Copied to clipboard!</span>
@@ -323,22 +359,22 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-label">Burstiness (Sentence StdDev)</div>
+          <div class="stat-label">Cadence Burstiness (StdDev)</div>
           <div class="stat-val" id="burstVal">0.0</div>
-          <small id="burstSub" style="color: var(--text-muted); font-size: 11px;">Pacing variance</small>
+          <small id="burstSub" style="color: var(--text-muted); font-size: 11px;">Sentence length variance</small>
         </div>
 
         <div class="stat-card">
-          <div class="stat-label">Invisible Chars Stripped</div>
-          <div class="stat-val" id="invisVal">0</div>
-          <small style="color: var(--text-muted); font-size: 11px;">Zero-width spaces / BOM</small>
+          <div class="stat-label">Modifications Made</div>
+          <div class="stat-val" id="modVal" style="color: var(--accent);">0</div>
+          <small id="modSub" style="color: var(--text-muted); font-size: 11px;">0 invisible | 0 clichés replaced</small>
         </div>
       </div>
 
       <div>
-        <div class="stat-label">Detected AI Clichés & Buzzwords</div>
+        <div class="stat-label">Remaining AI Markers & Clichés</div>
         <div class="tag-list" id="markerTags">
-          <span class="tag clean">None found (Clean)</span>
+          <span class="tag clean">None found (100% Clean)</span>
         </div>
       </div>
     </div>
@@ -355,6 +391,49 @@
     ];
     const INVISIBLE_REGEX = new RegExp('[' + INVISIBLE_CODEPOINTS.join('') + ']', 'g');
 
+    // Humanization dictionary
+    const LEXICAL_REPLACEMENTS = [
+      [/\bdelve(s|d|ing)? into\b/gi, 'explore'],
+      [/\bdelve(s|d|ing)?\b/gi, 'examine'],
+      [/\brich tapestry of\b/gi, 'mix of'],
+      [/\btapestry of\b/gi, 'blend of'],
+      [/\btapestry\b/gi, 'landscape'],
+      [/\bstands as a testament to\b/gi, 'shows'],
+      [/\ba testament to\b/gi, 'evidence of'],
+      [/\btestament\b/gi, 'proof'],
+      [/\bmultifaceted\b/gi, 'complex'],
+      [/\bholistic\b/gi, 'comprehensive'],
+      [/\bbeacon of\b/gi, 'model for'],
+      [/\bfoster(ing)?\b/gi, 'encouraging'],
+      [/\bnuanced\b/gi, 'detailed'],
+      [/\bunderscores?\b/gi, 'highlights'],
+      [/\bpivotal\b/gi, 'key'],
+      [/\bparamount\b/gi, 'essential'],
+      [/\bplays a (crucial|pivotal|critical) role in\b/gi, 'is key to'],
+      [/\bcrucial role\b/gi, 'important role'],
+      [/\bcrucial\b/gi, 'important'],
+      [/\bgame-changer\b/gi, 'major step forward'],
+      [/\brevolutioniz(e|es|ed|ing)\b/gi, 'transforms'],
+      [/\bseamlessly\b/gi, 'smoothly'],
+      [/\bintertwined\b/gi, 'connected'],
+      [/\bharness(ing)? the power of\b/gi, 'using'],
+      [/\bunleash(ing)?\b/gi, 'deploying'],
+      [/\bsupercharg(e|es|ed|ing)\b/gi, 'speeding up'],
+      [/\blet'?s unpack\b/gi, 'looking at'],
+      [/\bdive deep into\b/gi, 'examine'],
+      [/\bdive into\b/gi, 'explore'],
+      [/\bat its core\b/gi, 'fundamentally'],
+      [/\bCertainly!?\s*/gi, ''],
+      [/\bSure thing!?\s*/gi, ''],
+      [/\bHere is a breakdown of\b/gi, 'Regarding'],
+      [/\bHere'?s a breakdown of\b/gi, 'Regarding'],
+      [/\bIt is important to (remember|note) that\s*/gi, ''],
+      [/\bIt is worth noting that\s*/gi, ''],
+      [/\bKeep in mind that\s*/gi, ''],
+      [/\bIn conclusion,?\s*/gi, 'Ultimately, '],
+      [/\bTo sum up,?\s*/gi, 'In short, ']
+    ];
+
     const AI_BUZZWORDS = [
       /\bdelve(s|d|ing)?\b/gi, /\btapestry\b/gi, /\btestament\b/gi, /\bmultifaceted\b/gi,
       /\bholistic\b/gi, /\bbeacon\b/gi, /\bfoster(s|ed|ing)?\b/gi, /\bnuanced\b/gi,
@@ -370,29 +449,42 @@
       /\bat its core\b/gi, /\bkeep in mind that\b/gi, /\bhere'?s the breakdown\b/gi
     ];
 
-    function sanitizeText(raw) {
+    function sanitizeText(raw, shouldHumanize = true) {
       let preserved = [];
       let text = raw;
 
-      // Shield Code & Math
+      // 1. Shield Code & Math
       text = text.replace(/```[\s\S]*?```/g, m => { preserved.push(m); return `__IMMUNE_${preserved.length - 1}__`; });
       text = text.replace(/\$\$[\s\S]*?\$\$/g, m => { preserved.push(m); return `__IMMUNE_${preserved.length - 1}__`; });
       text = text.replace(/\$(?:[^\$\n]+)\$/g, m => { preserved.push(m); return `__IMMUNE_${preserved.length - 1}__`; });
       text = text.replace(/`[^`\n]+`/g, m => { preserved.push(m); return `__IMMUNE_${preserved.length - 1}__`; });
 
-      // Strip invisible chars
+      // 2. Strip invisible chars
       const invisMatches = (text.match(INVISIBLE_REGEX) || []).length;
       text = text.replace(INVISIBLE_REGEX, '');
 
-      // Normalize unicode
+      // 3. Normalize unicode
       text = text.normalize('NFKC');
 
-      // Restore Shielded blocks
+      // 4. Auto-Humanize prose if enabled
+      let clichesCount = 0;
+      if (shouldHumanize) {
+        LEXICAL_REPLACEMENTS.forEach(([pattern, replacement]) => {
+          const m = text.match(pattern);
+          if (m) {
+            clichesCount += m.length;
+            text = text.replace(pattern, replacement);
+          }
+        });
+        text = text.replace(/[ ]{2,}/g, ' ');
+      }
+
+      // 5. Restore Shielded blocks
       preserved.forEach((b, idx) => {
         text = text.replace(`__IMMUNE_${idx}__`, b);
       });
 
-      return { cleaned: text, invisCount: invisMatches };
+      return { cleaned: text, invisCount: invisMatches, clichesCount };
     }
 
     function analyzeText(text) {
@@ -435,13 +527,18 @@
 
     const inputEl = document.getElementById('inputText');
     const outputEl = document.getElementById('outputText');
+    const modeEl = document.getElementById('modeSelect');
+    const domainEl = document.getElementById('domainSelect');
     const cleanBtn = document.getElementById('cleanBtn');
     const copyBtn = document.getElementById('copyBtn');
     const sampleBtn = document.getElementById('sampleBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const promptBtn = document.getElementById('promptBtn');
 
     function runPipeline() {
       const val = inputEl.value;
-      const { cleaned, invisCount } = sanitizeText(val);
+      const shouldHumanize = (modeEl.value === 'humanize');
+      const { cleaned, invisCount, clichesCount } = sanitizeText(val, shouldHumanize);
       outputEl.value = cleaned;
 
       const words = val.trim() ? val.trim().split(/\s+/).length : 0;
@@ -459,11 +556,12 @@
       document.getElementById('synthVal').className = `stat-val ${stats.synthid === 'Zero Risk' ? 'pass' : stats.synthid === 'Moderate Risk' ? 'warn' : 'fail'}`;
 
       document.getElementById('burstVal').innerText = stats.stdDev;
-      document.getElementById('invisVal').innerText = invisCount;
+      document.getElementById('modVal').innerText = `${invisCount + clichesCount}`;
+      document.getElementById('modSub').innerText = `${invisCount} invisible stripped | ${clichesCount} clichés replaced`;
 
       const tagList = document.getElementById('markerTags');
       if (stats.markers.length === 0) {
-        tagList.innerHTML = '<span class="tag clean">None found (Clean)</span>';
+        tagList.innerHTML = '<span class="tag clean">None found (100% Clean)</span>';
       } else {
         tagList.innerHTML = stats.markers.map(m => `<span class="tag">${m}</span>`).join('');
       }
@@ -471,9 +569,17 @@
 
     cleanBtn.addEventListener('click', runPipeline);
     inputEl.addEventListener('input', runPipeline);
+    modeEl.addEventListener('change', runPipeline);
+    domainEl.addEventListener('change', runPipeline);
 
     sampleBtn.addEventListener('click', () => {
-      inputEl.value = "Certainly! Let's delve into this rich tapestry of knowledge. It is important to remember that the event loop plays a crucial role in supercharging server operations. ```python\ndef run_pipeline():\n    return 'safe_code'\n``` Furthermore, this stands as a testament to AI scalability.";
+      inputEl.value = "Certainly! Let's delve into this rich tapestry of modern software architecture. It is important to note that asynchronous concurrency plays a crucial role in supercharging server throughput. ```python\ndef handle_io():\n    return 'safe_code'\n``` Furthermore, this stands as a testament to scalable cloud engineering.";
+      runPipeline();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      inputEl.value = '';
+      outputEl.value = '';
       runPipeline();
     });
 
@@ -483,6 +589,18 @@
       feedback.style.display = 'inline';
       setTimeout(() => feedback.style.display = 'none', 2000);
     });
+
+    promptBtn.addEventListener('click', () => {
+      const domain = domainEl.value;
+      const textToWrap = inputEl.value.trim() || "[PASTE YOUR AI TEXT HERE]";
+      const prompt = `Rewrite the following text using the AntiWatermark protocol.\nDomain Persona: ${domain.toUpperCase()}\n\nRules:\n1. Strip all AI buzzwords (delve, tapestry, testament, multifaceted, foster, beacon, nuanced, underscores, paramount, crucial role, supercharge, let's unpack).\n2. Shatter n-gram sequences (SynthID) by inverting clauses and varying sentence lengths.\n3. Keep code blocks (\`\`\`...\`\`\`) and math equations ($...$) completely untouched.\n4. Write in a direct, natural human voice.\n\nText to rewrite:\n"""\n${textToWrap}\n"""`;
+      
+      navigator.clipboard.writeText(prompt);
+      alert("📋 Copied full Dewatermark Prompt to clipboard! You can paste this directly into Claude, Gemini, or ChatGPT.");
+    });
+
+    // Run initial on page load
+    runPipeline();
   </script>
 </body>
 </html>

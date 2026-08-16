@@ -2,7 +2,7 @@
 antiwatermark Core Engine
 =========================
 Handles zero-width Unicode stripping, Code/LaTeX Immunity, Multilingual marker detection,
-and offline AI detector heuristics simulation.
+lexical auto-humanization, and offline AI detector heuristics simulation.
 """
 
 import re
@@ -21,9 +21,49 @@ INVISIBLE_CODEPOINTS = [
 
 INVISIBLE_REGEX = re.compile('[' + ''.join(re.escape(c) for c in INVISIBLE_CODEPOINTS) + ']')
 
+# Replacement dictionary for automatic humanization
+LEXICAL_REPLACEMENTS = [
+    (r'\bdelve(s|d|ing)? into\b', 'explore'),
+    (r'\bdelve(s|d|ing)?\b', 'look closely at'),
+    (r'\brich tapestry of\b', 'mix of'),
+    (r'\btapestry of\b', 'blend of'),
+    (r'\ba testament to\b', 'evidence of'),
+    (r'\bstands as a testament to\b', 'shows the strength of'),
+    (r'\bmultifaceted\b', 'complex'),
+    (r'\bholistic\b', 'comprehensive'),
+    (r'\bbeacon of\b', 'model for'),
+    (r'\bfoster(ing)?\b', 'encouraging'),
+    (r'\bnuanced\b', 'detailed'),
+    (r'\bunderscores\b', 'highlights'),
+    (r'\bpivotal\b', 'key'),
+    (r'\bparamount\b', 'essential'),
+    (r'\bplays a crucial role in\b', 'is key to'),
+    (r'\bcrucial role\b', 'important role'),
+    (r'\bcrucial\b', 'important'),
+    (r'\bgame-changer\b', 'major upgrade'),
+    (r'\brevolutioniz(e|es|ed|ing)\b', 'transforms'),
+    (r'\bseamlessly\b', 'smoothly'),
+    (r'\bintertwined\b', 'connected'),
+    (r'\bharness(ing)? the power of\b', 'using'),
+    (r'\bunleash(ing)?\b', 'deploying'),
+    (r'\bsupercharge\b', 'speed up'),
+    (r'\blet\'?s unpack\b', 'looking at'),
+    (r'\bdive deep into\b', 'examine'),
+    (r'\bdive into\b', 'explore'),
+    (r'\bat its core\b', 'fundamentally'),
+    (r'\bCertainly!?\s*', ''),
+    (r'\bSure thing!?\s*', ''),
+    (r'\bHere is a breakdown of\b', 'Regarding'),
+    (r'\bHere\'?s a breakdown of\b', 'Regarding'),
+    (r'\bIt is important to remember that\b', ''),
+    (r'\bIt is worth noting that\b', ''),
+    (r'\bKeep in mind that\b', ''),
+    (r'\bIn conclusion,?\s*', 'Ultimately, '),
+    (r'\bTo sum up,?\s*', 'In short, ')
+]
+
 AI_BUZZWORDS_MULTILINGUAL = {
     "English": [
-        # Claude & General AI Tropes
         r'\bdelve(s|d|ing)?\b', r'\btapestry\b', r'\btestament\b', r'\bmultifaceted\b',
         r'\bholistic\b', r'\bbeacon\b', r'\bfoster(s|ed|ing)?\b', r'\bnuanced\b',
         r'\bunderscores?\b', r'\bpivotal\b', r'\bparamount\b', r'\bcrucial role\b',
@@ -33,14 +73,12 @@ AI_BUZZWORDS_MULTILINGUAL = {
         r'\bseamlessly\b', r'\bcomprehensive guide\b', r'\blet\'?s dive in\b',
         r'\bcertainly!?\b', r'\bit is important to note\b', r'\bit is worth noting\b',
         r'\bplays a critical role\b', r'\bstands as a\b', r'\bshines a light\b',
-        # Gemini / Google Tropes
         r'\bharness(ing)? the power\b', r'\belevat(e|es|ed|ing)\b', r'\bunleash(ing)?\b',
         r'\bsupercharge\b', r'\blet\'?s unpack\b', r'\beverything you need to know\b',
         r'\bdive deep\b', r'\bdive right in\b', r'\bat its core\b', r'\bgame changing\b',
         r'\bkeep in mind that\b', r'\bhere\'?s the breakdown\b', r'\bpowerhouse\b',
         r'\ba treasure trove\b', r'\bnavigating the\b', r'\bthe realm of\b',
         r'\ba myriad of\b', r'\ba plethora of\b', r'\bstands out as\b',
-        # ChatGPT / OpenAI Tropes
         r'\bit\'?s crucial to remember\b', r'\bin summary\b', r'\ba testament to\b',
         r'\bdelve deeper\b', r'\bnot only.*but also\b'
     ],
@@ -98,6 +136,21 @@ def strip_invisible_characters(text: str) -> Tuple[str, int]:
 
 def normalize_unicode(text: str) -> str:
     return unicodedata.normalize('NFKC', text)
+
+
+def auto_humanize_prose(text: str) -> Tuple[str, int]:
+    """Replaces AI tropes and cliches with natural human phrasing."""
+    replacements_made = 0
+    modified_text = text
+    for pattern, replacement in LEXICAL_REPLACEMENTS:
+        matches = len(re.findall(pattern, modified_text, flags=re.IGNORECASE))
+        if matches > 0:
+            modified_text = re.sub(pattern, replacement, modified_text, flags=re.IGNORECASE)
+            replacements_made += matches
+    # Clean up double spaces or orphaned commas
+    modified_text = re.sub(r'[ ]{2,}', ' ', modified_text)
+    modified_text = re.sub(r'\n[ ]+', '\n', modified_text)
+    return modified_text, replacements_made
 
 
 def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str, Any]:
@@ -192,15 +245,21 @@ def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str
     }
 
 
-def clean_text(raw_text: str) -> Tuple[str, Dict[str, Any]]:
+def clean_text(raw_text: str, humanize: bool = True) -> Tuple[str, Dict[str, Any]]:
     shield = ImmunityShield()
     shielded = shield.shield(raw_text)
     cleaned_shielded, invisible_count = strip_invisible_characters(shielded)
     cleaned_shielded = normalize_unicode(cleaned_shielded)
+    
+    cliches_replaced = 0
+    if humanize:
+        cleaned_shielded, cliches_replaced = auto_humanize_prose(cleaned_shielded)
+
     cleaned_shielded = re.sub(r'\r\n', '\n', cleaned_shielded)
     cleaned_shielded = re.sub(r'[\t ]+$', '', cleaned_shielded, flags=re.MULTILINE)
     final_cleaned = shield.unshield(cleaned_shielded)
     scorecard = compute_ai_detector_scorecard(final_cleaned, shield)
     scorecard['invisible_chars_removed'] = invisible_count
+    scorecard['cliches_replaced'] = cliches_replaced
 
     return final_cleaned, scorecard
