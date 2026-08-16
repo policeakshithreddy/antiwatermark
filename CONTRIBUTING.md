@@ -21,10 +21,10 @@ Thank you for your interest in improving **AntiWatermark**! We welcome contribut
    git checkout -b feat/your-feature-name
    ```
 2. Make your improvements.
-3. Verify that the CLI tests and build run cleanly:
+3. Verify that the test suite and build run cleanly:
    ```bash
-   python3 scripts/sanitize.py "Test string"
-   python3 -m build --no-isolation
+   pytest
+   python3 -m build
    ```
 4. Commit your changes with clear, conventional commit messages:
    ```bash

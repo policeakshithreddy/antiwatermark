@@ -21,6 +21,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+.pytest_cache/
+
 # macOS
 .DS_Store
 .AppleDouble

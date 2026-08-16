@@ -1,14 +1,9 @@
-"""
-antiwatermark Core Engine
-=========================
-Handles zero-width Unicode stripping, Code/LaTeX Immunity, Multilingual marker detection,
-lexical auto-humanization, and offline AI detector heuristics simulation.
-"""
-
+import uuid
 import re
 import unicodedata
 import statistics
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
+from dataclasses import dataclass, field
 
 INVISIBLE_CODEPOINTS = [
     '\u200B', '\u200C', '\u200D', '\u200E', '\u200F',
@@ -21,7 +16,6 @@ INVISIBLE_CODEPOINTS = [
 
 INVISIBLE_REGEX = re.compile('[' + ''.join(re.escape(c) for c in INVISIBLE_CODEPOINTS) + ']')
 
-# Replacement dictionary for automatic humanization
 LEXICAL_REPLACEMENTS = [
     (r'\bdelve(s|d|ing)? into\b', 'explore'),
     (r'\bdelve(s|d|ing)?\b', 'look closely at'),
@@ -100,46 +94,59 @@ AI_BUZZWORDS_MULTILINGUAL = {
     ]
 }
 
-
 class ImmunityShield:
-    """Protects code blocks, inline code, and LaTeX math from alteration."""
-
     def __init__(self):
-        self.preserved_blocks: List[str] = []
+        self.preserved_blocks: Dict[str, str] = {}
+        
+    def _generate_placeholder(self) -> str:
+        short_id = uuid.uuid4().hex[:8]
+        return f"⟦AW-{short_id}⟧"
 
     def shield(self, text: str) -> str:
         self.preserved_blocks.clear()
 
         def repl(match):
-            idx = len(self.preserved_blocks)
-            self.preserved_blocks.append(match.group(0))
-            return f"__IMMUNE_BLOCK_{idx}__"
+            placeholder = self._generate_placeholder()
+            self.preserved_blocks[placeholder] = match.group(0)
+            return placeholder
 
+        # URLs
+        text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', repl, text)
+        # Markdown links
+        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', repl, text)
+        # Email addresses
+        text = re.sub(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', repl, text)
+        # Code blocks
         text = re.sub(r'```[\s\S]*?```', repl, text)
+        # LaTeX begin/end
+        text = re.sub(r'\\begin\{[^}]+\}[\s\S]*?\\end\{[^}]+\}', repl, text)
+        # LaTeX math blocks
         text = re.sub(r'\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]', repl, text)
+        # Inline math
         text = re.sub(r'(?<!\$)\$(?:[^\$\n]+)\$(?!\$)|\\\([\s\S]*?\\\)', repl, text)
+        # Inline code
         text = re.sub(r'`[^`\n]+`', repl, text)
 
         return text
 
     def unshield(self, text: str) -> str:
-        for idx, block in enumerate(self.preserved_blocks):
-            text = text.replace(f"__IMMUNE_BLOCK_{idx}__", block)
+        for placeholder, block in self.preserved_blocks.items():
+            text = text.replace(placeholder, block)
         return text
-
+        
+    def validate(self, text: str) -> bool:
+        """Check if all placeholders were successfully replaced."""
+        return not any(p in text for p in self.preserved_blocks.keys())
 
 def strip_invisible_characters(text: str) -> Tuple[str, int]:
     matches = len(INVISIBLE_REGEX.findall(text))
     cleaned = INVISIBLE_REGEX.sub('', text)
     return cleaned, matches
 
-
 def normalize_unicode(text: str) -> str:
     return unicodedata.normalize('NFKC', text)
 
-
 def auto_humanize_prose(text: str) -> Tuple[str, int]:
-    """Replaces AI tropes and cliches with natural human phrasing."""
     replacements_made = 0
     modified_text = text
     for pattern, replacement in LEXICAL_REPLACEMENTS:
@@ -147,16 +154,14 @@ def auto_humanize_prose(text: str) -> Tuple[str, int]:
         if matches > 0:
             modified_text = re.sub(pattern, replacement, modified_text, flags=re.IGNORECASE)
             replacements_made += matches
-    # Clean up double spaces or orphaned commas
     modified_text = re.sub(r'[ ]{2,}', ' ', modified_text)
     modified_text = re.sub(r'\n[ ]+', '\n', modified_text)
     return modified_text, replacements_made
 
-
-def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str, Any]:
+def compute_heuristic_diagnostics(text: str, shield: ImmunityShield) -> Dict[str, Any]:
     shielded_text = shield.shield(text)
     raw_sentences = re.split(r'(?<=[.!?])\s+', shielded_text.strip())
-    sentences = [s.strip() for s in raw_sentences if s.strip() and not s.startswith('__IMMUNE_BLOCK_')]
+    sentences = [s.strip() for s in raw_sentences if s.strip() and not s.startswith('⟦AW-')]
 
     if not sentences:
         return {
@@ -170,7 +175,7 @@ def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str
             'burstiness_rating': 'N/A',
             'symmetrical_lists_detected': False,
             'detected_markers': {},
-            'synthid_risk_level': 'Zero Risk'
+            'pattern_risk_level': 'Zero Risk'
         }
 
     word_counts = [len(s.split()) for s in sentences]
@@ -211,18 +216,18 @@ def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str
     score = max(0.0, min(100.0, score))
 
     if score < 40:
-        synthid_risk = "High Probability of Statistical Signature"
+        pattern_risk = "High Probability of Statistical Signature"
     elif score < 70:
-        synthid_risk = "Moderate Pattern Match"
+        pattern_risk = "Moderate Pattern Match"
     else:
-        synthid_risk = "Negligible (Shattered n-grams)"
+        pattern_risk = "Negligible (Shattered n-grams)"
 
     if score >= 80.0:
         verdict = "PASSED (Natural Human Cadence)"
     elif score >= 55.0:
-        verdict = "SUSPICIOUS (Borderline AI Patterns)"
+        verdict = "SUSPICIOUS (Borderline AntiWatermark Heuristic)"
     else:
-        verdict = "AI FLAGGED (High Probability AI Origin)"
+        verdict = "FLAGGED (High Probability AntiWatermark Heuristic Origin)"
 
     burstiness_desc = (
         "High (Natural human variance)" if std_dev >= 8.0
@@ -241,9 +246,8 @@ def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str
         'burstiness_rating': burstiness_desc,
         'symmetrical_lists_detected': has_symmetrical_triad,
         'detected_markers': detected_markers,
-        'synthid_risk_level': synthid_risk
+        'pattern_risk_level': pattern_risk
     }
-
 
 def clean_text(raw_text: str, humanize: bool = True) -> Tuple[str, Dict[str, Any]]:
     shield = ImmunityShield()
@@ -258,8 +262,72 @@ def clean_text(raw_text: str, humanize: bool = True) -> Tuple[str, Dict[str, Any
     cleaned_shielded = re.sub(r'\r\n', '\n', cleaned_shielded)
     cleaned_shielded = re.sub(r'[\t ]+$', '', cleaned_shielded, flags=re.MULTILINE)
     final_cleaned = shield.unshield(cleaned_shielded)
-    scorecard = compute_ai_detector_scorecard(final_cleaned, shield)
+    scorecard = compute_heuristic_diagnostics(final_cleaned, shield)
     scorecard['invisible_chars_removed'] = invisible_count
     scorecard['cliches_replaced'] = cliches_replaced
 
     return final_cleaned, scorecard
+
+def rewrite_text(raw_text: str, backend=None, **kwargs) -> Tuple[str, Dict[str, Any]]:
+    if backend is None:
+        return clean_text(raw_text, humanize=True)
+    
+    shield = ImmunityShield()
+    shielded = shield.shield(raw_text)
+    
+    # Delegated to backend
+    from .backend import RewriteConfig
+    config = RewriteConfig(**kwargs)
+    rewritten_shielded = backend.rewrite(shielded, config)
+    
+    final_text = shield.unshield(rewritten_shielded)
+    scorecard = compute_heuristic_diagnostics(final_text, shield)
+    return final_text, scorecard
+
+@dataclass
+class ValidationResult:
+    is_valid: bool
+    failures: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+def validate_output(original: str, processed: str, shield: ImmunityShield, max_output_ratio: float = 3.0) -> ValidationResult:
+    failures = []
+    warnings = []
+    
+    # Check 1: Protected spans 100% exact match
+    for placeholder, original_span in shield.preserved_blocks.items():
+        if original_span not in processed:
+            failures.append(f"Protected span missing or modified: {original_span[:20]}...")
+            
+    # Check 2: No leftover placeholders
+    if not shield.validate(processed):
+        failures.append("Orphaned placeholders found in output.")
+    
+    # Check 3: URL preservation
+    original_urls = set(re.findall(r'https?://[^\s<>"]+', original))
+    processed_urls = set(re.findall(r'https?://[^\s<>"]+', processed))
+    missing_urls = original_urls - processed_urls
+    if missing_urls:
+        for url in missing_urls:
+            failures.append(f"URL modified or missing: {url[:50]}")
+        
+    # Check 4: Output length bounds
+    if not processed.strip() and original.strip():
+        failures.append("Output is unexpectedly empty.")
+    elif original.strip() and len(processed) > len(original) * max_output_ratio:
+        failures.append("Output exceeds maximum allowed length expansion.")
+        
+    # Check 5: Prompt leakage
+    leakage_patterns = [
+        r"As an AI", r"I cannot", r"I'm sorry", r"I apologize",
+        r"As a large language model"
+    ]
+    for pat in leakage_patterns:
+        if re.search(pat, processed, re.IGNORECASE):
+            failures.append(f"Prompt leakage detected: '{pat}'")
+
+    return ValidationResult(
+        is_valid=len(failures) == 0,
+        failures=failures,
+        warnings=warnings
+    )

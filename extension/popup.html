@@ -1,68 +1,152 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <title>AntiWatermark</title>
   <style>
-    body {
-      width: 320px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0d1117;
-      color: #c9d1d9;
-      margin: 0;
-      padding: 14px;
+    :root {
+      --bg: #09090b;
+      --surface: #18181b;
+      --surface-hover: #27272a;
+      --border: #3f3f46;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --primary: #10b981;
+      --primary-hover: #059669;
     }
-    h3 {
-      margin: 0 0 10px 0;
-      font-size: 14px;
-      color: #58a6ff;
+    body {
+      width: 350px;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .header {
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     textarea {
       width: 100%;
-      height: 110px;
-      background: #161b22;
-      border: 1px solid #30363d;
+      height: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
       border-radius: 6px;
-      color: #f0f6fc;
       padding: 8px;
       box-sizing: border-box;
-      font-size: 12px;
-      resize: vertical;
+      resize: none;
+      margin-bottom: 12px;
+      font-family: inherit;
     }
-    .btn-row {
+    textarea:focus { outline: none; border-color: var(--primary); }
+    .mode-select {
       display: flex;
-      justify-content: space-between;
-      margin-top: 10px;
-      gap: 6px;
+      gap: 16px;
+      margin-bottom: 12px;
     }
-    button {
-      flex: 1;
-      background: #238636;
-      border: 1px solid #2ea043;
-      color: #fff;
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 12px;
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
       cursor: pointer;
     }
-    button:hover { background: #2ea043; }
-    #stats {
-      font-size: 11px;
-      color: #8b949e;
-      margin-top: 8px;
+    button {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
     }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    #result-container {
+      margin-top: 12px;
+      display: none;
+    }
+    #result-area {
+      height: 80px;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--surface-hover);
+    }
+
+    .settings-panel {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: none;
+    }
+    .settings-panel.active { display: block; }
+    .setting-group { margin-bottom: 12px; }
+    .setting-group label { display: block; margin-bottom: 4px; color: var(--text-muted); }
+    .setting-group input[type="text"] {
+      width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 4px; box-sizing: border-box;
+    }
+    a.link { color: var(--primary); text-decoration: none; font-size: 13px; display: inline-block; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h3>🛡️ AntiWatermark Quick Clean</h3>
-  <textarea id="textInput" placeholder="Paste text here..."></textarea>
-  <div class="btn-row">
-    <button id="cleanBtn">🧹 Strip Watermark</button>
-    <button id="copyBtn" style="background:#21262d; border-color:#30363d;">📋 Copy</button>
+  <div class="header">
+    <h1>🛡️ AntiWatermark</h1>
   </div>
-  <div id="stats">Human Confidence: 100% | Clean</div>
+
+  <textarea id="input-text" placeholder="Paste text here..."></textarea>
+  
+  <div class="mode-select">
+    <label><input type="radio" name="mode" value="clean" checked> Quick Clean</label>
+    <label><input type="radio" name="mode" value="rewrite"> Deep Rewrite</label>
+  </div>
+
+  <button id="process-btn">Process</button>
+
+  <div id="result-container">
+    <textarea id="result-area" readonly></textarea>
+    <div class="actions">
+      <button id="copy-btn" class="btn-secondary">Copy Result</button>
+      <button id="settings-toggle" class="btn-secondary">⚙ Settings</button>
+    </div>
+  </div>
+
+  <div class="settings-panel" id="settings-panel">
+    <div class="setting-group">
+      <label>Model Name (for Rewrite)</label>
+      <input type="text" id="model-name" value="llama3.2">
+    </div>
+    <div class="setting-group" style="flex-direction: row; align-items: center;">
+      <label style="display: flex; align-items: center; gap: 8px; color: var(--text);">
+        <input type="checkbox" id="auto-clean" checked> Auto-clean clipboard
+      </label>
+    </div>
+    <a href="http://localhost:3000" target="_blank" class="link">Open Web UI ↗</a>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

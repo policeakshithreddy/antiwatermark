@@ -1,26 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "AntiWatermark — AI Watermark & Steganography Stripper",
-  "version": "1.0.0",
-  "description": "Automatically strip invisible zero-width watermarks, SynthID traces, and AI clichés from Claude, Gemini, and ChatGPT.",
-  "permissions": [
-    "clipboardWrite",
-    "activeTab"
-  ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "AntiWatermark Quick Clean"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  "name": "AntiWatermark",
+  "version": "2.0.0",
+  "description": "Local-only text cleaner. Strips invisible watermarks, removes AI clichés, and optionally rewrites via local AI.",
+  "permissions": ["activeTab", "contextMenus", "clipboardWrite", "storage"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" } },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_start" }]
 }

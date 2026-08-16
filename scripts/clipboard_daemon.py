@@ -17,8 +17,9 @@ import sys
 import os
 
 # Import the core sanitization engine
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from sanitize import clean_text, strip_invisible_characters, normalize_unicode
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from antiwatermark.core import clean_text, strip_invisible_characters, normalize_unicode
 
 
 def get_clipboard() -> str:
