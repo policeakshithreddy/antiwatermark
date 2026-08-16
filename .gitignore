@@ -26,9 +26,15 @@ MANIFEST
 .AppleDouble
 .LSOverride
 
-# Environments
+# Environments & Sensitive Files
 .env
 .venv
 env/
 venv/
 ENV/
+codexes/
+*.rtf
+*recovery*
+*Recovery*
+*sensitive*
+*token*
