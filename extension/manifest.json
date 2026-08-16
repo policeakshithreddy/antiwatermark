@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "AntiWatermark — AI Watermark & Steganography Stripper",
+  "version": "1.0.0",
+  "description": "Automatically strip invisible zero-width watermarks, SynthID traces, and AI clichés from Claude, Gemini, and ChatGPT.",
+  "permissions": [
+    "clipboardWrite",
+    "activeTab"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AntiWatermark Quick Clean"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

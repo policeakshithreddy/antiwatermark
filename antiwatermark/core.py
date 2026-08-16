@@ -1,0 +1,206 @@
+"""
+antiwatermark Core Engine
+=========================
+Handles zero-width Unicode stripping, Code/LaTeX Immunity, Multilingual marker detection,
+and offline AI detector heuristics simulation.
+"""
+
+import re
+import unicodedata
+import statistics
+from typing import Dict, List, Tuple, Any
+
+INVISIBLE_CODEPOINTS = [
+    '\u200B', '\u200C', '\u200D', '\u200E', '\u200F',
+    '\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+    '\u2060', '\u2061', '\u2062', '\u2063', '\u2064',
+    '\u206A', '\u206B', '\u206C', '\u206D', '\u206E', '\u206F',
+    '\uFEFF', '\u00AD', '\u180E', '\u034F',
+    '\u115F', '\u1160', '\u3164', '\uFFA0'
+]
+
+INVISIBLE_REGEX = re.compile('[' + ''.join(re.escape(c) for c in INVISIBLE_CODEPOINTS) + ']')
+
+AI_BUZZWORDS_MULTILINGUAL = {
+    "English": [
+        # Claude & General AI Tropes
+        r'\bdelve(s|d|ing)?\b', r'\btapestry\b', r'\btestament\b', r'\bmultifaceted\b',
+        r'\bholistic\b', r'\bbeacon\b', r'\bfoster(s|ed|ing)?\b', r'\bnuanced\b',
+        r'\bunderscores?\b', r'\bpivotal\b', r'\bparamount\b', r'\bcrucial role\b',
+        r'\bin conclusion\b', r'\bfurthermore\b', r'\bmoreover\b', r'\bintertwined\b',
+        r'\bvibrant\b', r'\bresonates?\b', r'\bembark(s|ed|ing)?\b', r'\buncharted\b',
+        r'\bgame-changer\b', r'\brevolutioniz(e|es|ed|ing)\b', r'\bculmination\b',
+        r'\bseamlessly\b', r'\bcomprehensive guide\b', r'\blet\'?s dive in\b',
+        r'\bcertainly!?\b', r'\bit is important to note\b', r'\bit is worth noting\b',
+        r'\bplays a critical role\b', r'\bstands as a\b', r'\bshines a light\b',
+        # Gemini / Google Tropes
+        r'\bharness(ing)? the power\b', r'\belevat(e|es|ed|ing)\b', r'\bunleash(ing)?\b',
+        r'\bsupercharge\b', r'\blet\'?s unpack\b', r'\beverything you need to know\b',
+        r'\bdive deep\b', r'\bdive right in\b', r'\bat its core\b', r'\bgame changing\b',
+        r'\bkeep in mind that\b', r'\bhere\'?s the breakdown\b', r'\bpowerhouse\b',
+        r'\ba treasure trove\b', r'\bnavigating the\b', r'\bthe realm of\b',
+        r'\ba myriad of\b', r'\ba plethora of\b', r'\bstands out as\b',
+        # ChatGPT / OpenAI Tropes
+        r'\bit\'?s crucial to remember\b', r'\bin summary\b', r'\ba testament to\b',
+        r'\bdelve deeper\b', r'\bnot only.*but also\b'
+    ],
+    "Spanish": [
+        r'\bes fundamental destacar\b', r'\bun tapiz de\b', r'\ben conclusión\b',
+        r'\bun papel crucial\b', r'\bdesempeña un papel\b', r'\bes importante recordar\b',
+        r'\bprofundicemos en\b', r'\bun faro de\b', r'\bfomentar el desarrollo\b',
+        r'\buna gran cantidad de\b', r'\ben resumen\b', r'\bcabe destacar que\b'
+    ],
+    "French": [
+        r'\bil convient de noter\b', r'\bun rôle primordial\b', r'\btémoignage de\b',
+        r'\ben conclusion\b', r'\bplonger dans\b', r'\bun éventail de\b',
+        r'\bil est important de souligner\b', r'\bun phare de\b', r'\ben somme\b'
+    ],
+    "German": [
+        r'\bes ist wichtig zu beachten\b', r'\bein facettenreicher\b',
+        r'\bzusammenfassend lässt sich sagen\b', r'\beine entscheidende rolle\b',
+        r'\btauchen wir ein\b', r'\bein meilenstein\b', r'\bes sei darauf hingewiesen\b'
+    ]
+}
+
+
+class ImmunityShield:
+    """Protects code blocks, inline code, and LaTeX math from alteration."""
+
+    def __init__(self):
+        self.preserved_blocks: List[str] = []
+
+    def shield(self, text: str) -> str:
+        self.preserved_blocks.clear()
+
+        def repl(match):
+            idx = len(self.preserved_blocks)
+            self.preserved_blocks.append(match.group(0))
+            return f"__IMMUNE_BLOCK_{idx}__"
+
+        text = re.sub(r'```[\s\S]*?```', repl, text)
+        text = re.sub(r'\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]', repl, text)
+        text = re.sub(r'(?<!\$)\$(?:[^\$\n]+)\$(?!\$)|\\\([\s\S]*?\\\)', repl, text)
+        text = re.sub(r'`[^`\n]+`', repl, text)
+
+        return text
+
+    def unshield(self, text: str) -> str:
+        for idx, block in enumerate(self.preserved_blocks):
+            text = text.replace(f"__IMMUNE_BLOCK_{idx}__", block)
+        return text
+
+
+def strip_invisible_characters(text: str) -> Tuple[str, int]:
+    matches = len(INVISIBLE_REGEX.findall(text))
+    cleaned = INVISIBLE_REGEX.sub('', text)
+    return cleaned, matches
+
+
+def normalize_unicode(text: str) -> str:
+    return unicodedata.normalize('NFKC', text)
+
+
+def compute_ai_detector_scorecard(text: str, shield: ImmunityShield) -> Dict[str, Any]:
+    shielded_text = shield.shield(text)
+    raw_sentences = re.split(r'(?<=[.!?])\s+', shielded_text.strip())
+    sentences = [s.strip() for s in raw_sentences if s.strip() and not s.startswith('__IMMUNE_BLOCK_')]
+
+    if not sentences:
+        return {
+            'human_confidence_pct': 100.0,
+            'ai_probability_pct': 0.0,
+            'verdict': 'INSUFFICIENT PROSE TO EVALUATE',
+            'sentence_count': 0,
+            'total_words': 0,
+            'avg_sentence_len': 0.0,
+            'std_dev_burstiness': 0.0,
+            'burstiness_rating': 'N/A',
+            'symmetrical_lists_detected': False,
+            'detected_markers': {},
+            'synthid_risk_level': 'Zero Risk'
+        }
+
+    word_counts = [len(s.split()) for s in sentences]
+    avg_len = sum(word_counts) / len(word_counts)
+    std_dev = statistics.stdev(word_counts) if len(word_counts) > 1 else 0.0
+
+    detected_markers: Dict[str, List[str]] = {}
+    total_marker_count = 0
+    for lang, patterns in AI_BUZZWORDS_MULTILINGUAL.items():
+        found_in_lang = []
+        for pat in patterns:
+            for m in re.finditer(pat, shielded_text, flags=re.IGNORECASE):
+                word = m.group(0).strip()
+                if word:
+                    found_in_lang.append(word.lower())
+        if found_in_lang:
+            detected_markers[lang] = list(set(found_in_lang))
+            total_marker_count += len(found_in_lang)
+
+    list_matches = re.findall(r'^\s*[-*•]\s+\*\*[^*]+\*\*:', text, flags=re.MULTILINE)
+    has_symmetrical_triad = (len(list_matches) == 3)
+
+    score = 100.0
+
+    if std_dev < 3.5:
+        score -= 35.0
+    elif std_dev < 6.0:
+        score -= 20.0
+    elif std_dev < 8.0:
+        score -= 5.0
+
+    marker_penalty = min(total_marker_count * 12.0, 50.0)
+    score -= marker_penalty
+
+    if has_symmetrical_triad:
+        score -= 15.0
+
+    score = max(0.0, min(100.0, score))
+
+    if score < 40:
+        synthid_risk = "High Probability of Statistical Signature"
+    elif score < 70:
+        synthid_risk = "Moderate Pattern Match"
+    else:
+        synthid_risk = "Negligible (Shattered n-grams)"
+
+    if score >= 80.0:
+        verdict = "PASSED (Natural Human Cadence)"
+    elif score >= 55.0:
+        verdict = "SUSPICIOUS (Borderline AI Patterns)"
+    else:
+        verdict = "AI FLAGGED (High Probability AI Origin)"
+
+    burstiness_desc = (
+        "High (Natural human variance)" if std_dev >= 8.0
+        else "Moderate (Average variance)" if std_dev >= 5.0
+        else "Low (Monotonous / AI-like cadence)"
+    )
+
+    return {
+        'human_confidence_pct': round(score, 1),
+        'ai_probability_pct': round(100.0 - score, 1),
+        'verdict': verdict,
+        'sentence_count': len(sentences),
+        'total_words': sum(word_counts),
+        'avg_sentence_len': round(avg_len, 2),
+        'std_dev_burstiness': round(std_dev, 2),
+        'burstiness_rating': burstiness_desc,
+        'symmetrical_lists_detected': has_symmetrical_triad,
+        'detected_markers': detected_markers,
+        'synthid_risk_level': synthid_risk
+    }
+
+
+def clean_text(raw_text: str) -> Tuple[str, Dict[str, Any]]:
+    shield = ImmunityShield()
+    shielded = shield.shield(raw_text)
+    cleaned_shielded, invisible_count = strip_invisible_characters(shielded)
+    cleaned_shielded = normalize_unicode(cleaned_shielded)
+    cleaned_shielded = re.sub(r'\r\n', '\n', cleaned_shielded)
+    cleaned_shielded = re.sub(r'[\t ]+$', '', cleaned_shielded, flags=re.MULTILINE)
+    final_cleaned = shield.unshield(cleaned_shielded)
+    scorecard = compute_ai_detector_scorecard(final_cleaned, shield)
+    scorecard['invisible_chars_removed'] = invisible_count
+
+    return final_cleaned, scorecard
